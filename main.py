@@ -7,9 +7,9 @@ import time
 from datetime import timedelta, datetime
 
 
-class TimeToLiveCounter:
-    def __init__(self, *, ttl_seconds: float):
-        self._ttl_seconds = ttl_seconds
+class ExpiringCounter:
+    def __init__(self, seconds: float):
+        self._seconds = seconds
         self._timestamps = []
 
     def increment(self):
@@ -22,36 +22,35 @@ class TimeToLiveCounter:
 
     def _clear_old_timestamps(self):
         now = datetime.now()
-        ttl = self._ttl_seconds
         self._timestamps = [
             timestamp
             for timestamp in self._timestamps
-            if now < timestamp + timedelta(seconds=ttl)
+            if now < timestamp + timedelta(seconds=self._seconds)
         ]
 
 
 class Server:
-    def __init__(self, counter: TimeToLiveCounter):
-        self._counter = counter
-
     @classmethod
-    async def send_request(cls):
+    def init_from_config(cls, request_limit_per_period: int, period_seconds: float):
+        return cls(request_limit_per_period, ExpiringCounter(period_seconds))
+
+    def __init__(self, request_limit_per_period: int, request_limit_counter: ExpiringCounter):
+        self._request_limit_per_period = request_limit_per_period
+        self._request_limit_counter = request_limit_counter
+
+    async def send_request(self, request_id):
         # Simulated network delay
         await asyncio.sleep(0.2)
 
         # Simulated server-side processing
-        ...
-        return 200
+        if self._request_limit_counter.count >= self._request_limit_per_period:
+            return 429, request_id
+        self._request_limit_counter.increment()
+        return 200, request_id
 
 
-async def run_test():
-    server = Server(TimeToLiveCounter(ttl_seconds=1))
-    response_code = await server.send_request()
-    print(response_code)
-
-
-def smoke_test_time_to_live_counter():
-    counter = TimeToLiveCounter(ttl_seconds=0.03)
+def run_smoke_test_time_to_live_counter():
+    counter = ExpiringCounter(seconds=0.03)
     assert counter.count == 0
     counter.increment()
     counter.increment()
@@ -67,5 +66,21 @@ def smoke_test_time_to_live_counter():
     print("[SMOKE TEST PASS] smoke_test_time_to_live_counter")
 
 
+async def send_requests(reqs):
+    return await asyncio.gather(*reqs)
+
+
+def run_smoke_test_server_rate_limiter():
+    server = Server.init_from_config(request_limit_per_period=10, period_seconds=1)
+    requests_to_be_sent = [
+        server.send_request(id_)
+        for id_ in range(15)
+    ]
+    response_codes = asyncio.run(send_requests(requests_to_be_sent))
+    assert len([k for k in response_codes if k[0] == 200]) == 10
+    print("[SMOKE TEST PASS] run_smoke_test_server_rate_limiter")
+
+
 if __name__ == "__main__":
-    smoke_test_time_to_live_counter()
+    run_smoke_test_time_to_live_counter()
+    run_smoke_test_server_rate_limiter()
