@@ -4,7 +4,9 @@ a user to make more than 10 requests per second.
 """
 import asyncio
 import time
+from collections import defaultdict
 from datetime import timedelta, datetime
+from pprint import pp
 
 
 class ExpiringCounter:
@@ -32,21 +34,22 @@ class ExpiringCounter:
 class Server:
     @classmethod
     def init_from_config(cls, request_limit_per_period: int, period_seconds: float):
-        return cls(request_limit_per_period, ExpiringCounter(period_seconds))
+        return cls(request_limit_per_period, defaultdict(lambda: ExpiringCounter(period_seconds)))
 
-    def __init__(self, request_limit_per_period: int, request_limit_counter: ExpiringCounter):
+    def __init__(self, request_limit_per_period: int, request_limit_multitenant_counter):
         self._request_limit_per_period = request_limit_per_period
-        self._request_limit_counter = request_limit_counter
+        self._request_limit_multitenant_counter = request_limit_multitenant_counter
 
-    async def send_request(self, request_id):
+    async def send_request(self, user_id, request_id):
         # Simulated network delay
         await asyncio.sleep(0.2)
 
         # Simulated server-side processing
-        if self._request_limit_counter.count >= self._request_limit_per_period:
-            return 429, request_id
-        self._request_limit_counter.increment()
-        return 200, request_id
+        counter = self._request_limit_multitenant_counter[user_id]
+        if counter.count >= self._request_limit_per_period:
+            return 429, user_id, request_id
+        counter.increment()
+        return 200, user_id, request_id
 
 
 def run_smoke_test_time_to_live_counter():
@@ -73,11 +76,13 @@ async def send_requests(reqs):
 def run_smoke_test_server_rate_limiter():
     server = Server.init_from_config(request_limit_per_period=10, period_seconds=1)
     requests_to_be_sent = [
-        server.send_request(id_)
-        for id_ in range(15)
+        server.send_request(user_id, user_request_id)
+        for user_id in ('bob', 'alice')
+        for user_request_id in range(15)
     ]
-    response_codes = asyncio.run(send_requests(requests_to_be_sent))
-    assert len([k for k in response_codes if k[0] == 200]) == 10
+    responses = asyncio.run(send_requests(requests_to_be_sent))
+    pp(responses)
+    assert len([k for k in responses if k[0] == 200]) == 2 * 10
     print("[SMOKE TEST PASS] run_smoke_test_server_rate_limiter")
 
 
