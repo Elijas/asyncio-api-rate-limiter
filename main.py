@@ -89,3 +89,42 @@ def run_smoke_test_server_rate_limiter():
 if __name__ == "__main__":
     run_smoke_test_time_to_live_counter()
     run_smoke_test_server_rate_limiter()
+
+""" 
+OUTPUT:
+
+[SMOKE TEST PASS] smoke_test_time_to_live_counter
+[(200, 'bob', 0),
+ (200, 'bob', 1),
+ (200, 'bob', 2),
+ (200, 'bob', 3),
+ (200, 'bob', 4),
+ (200, 'bob', 5),
+ (200, 'bob', 6),
+ (200, 'bob', 7),
+ (200, 'bob', 8),
+ (200, 'bob', 9),
+ (429, 'bob', 10),
+ (429, 'bob', 11),
+ (429, 'bob', 12),
+ (429, 'bob', 13),
+ (429, 'bob', 14),
+ (200, 'alice', 0),
+ (200, 'alice', 1),
+ (200, 'alice', 2),
+ (200, 'alice', 3),
+ (200, 'alice', 4),
+ (200, 'alice', 5),
+ (200, 'alice', 6),
+ (200, 'alice', 7),
+ (200, 'alice', 8),
+ (200, 'alice', 9),
+ (429, 'alice', 10),
+ (429, 'alice', 11),
+ (429, 'alice', 12),
+ (429, 'alice', 13),
+ (429, 'alice', 14)]
+[SMOKE TEST PASS] run_smoke_test_server_rate_limiter
+
+Process finished with exit code 0
+"""
